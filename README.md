@@ -33,11 +33,13 @@ fork于gitee内的一名大佬作品https://gitee.com/FancyCabbage/skyland-auto-
 
 ## 方法1
 
-1.先装python（3.6及以上）且安装requests库.cmd 运行`pip install requests`
+1.安装python（3.6及以上）
 
-2.下载脚本`skyland.py`
+2.下载`requirements.txt` ，在该目录下打开命令提示符，运行`pip install -r requirements.txt`
 
-3.双击本文件（弹出一个黑框框代表你成功了）
+2.下载脚本`skyland.py`、`SecuritySm.py`,这两个文件都要放置在`requirements.txt`文件同目录下
+
+3.命令提示符运行`python skyland.py`（结果输出如下就代表你成功了）
 ![img.png](assets/img_0.png)
 
 （以上3步可以用我打好的exe文件直接运行，链接见[release](https://gitee.com/FancyCabbage/skyland-auto-sign/releases)
@@ -81,7 +83,6 @@ TOKEN和日志应该都会被存储在MAA根路径下
 ![img_6.png](assets/img_6.png)
 
 <a name="mode2"></a>
-
 ## 方法2
 
 使用华为云挂载服务器签到（华为云有每月免费额度）
@@ -110,7 +111,7 @@ TOKEN和日志应该都会被存储在MAA根路径下
 8.上传完成后应该是这个样子的
 ![img_12.png](assets/img_12.png)
 
-9.选中`INPUT_HYPERGRYPH_TOKEN.txt`，在右边添加你的鹰角通行证.支持多个，换行添加下一个即可。
+9.选中`INPUT_HYPERGRYPH_TOKEN.txt`，在右边添加你的鹰角通行证 `TOKEN` ,支持多个，换行添加下一个即可。
 ![img_13.png](assets/img_13.png)
 
 10.保存完毕后，可以点击测试测试一下脚本。创建测试这里直接点击创建即可
@@ -160,11 +161,17 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 点击 New repository secret
 
-创建名为`TOKEN`的环境变量（注意变量名全大写），并填入你的鹰角网络通行证，如果要管理多个账号，换行即可
+**创建名为`TOKEN`的环境变量（注意变量名全大写），并填入你在[这个网址](https://web-api.skland.com/account/info/hg)获取的`token` 【`"content":` 字段的值，不加双引号（形如 `大小写字母和数字混合的24位字符`)】，如果要管理多个账号，换行即可**
+
+**如果要开启 Server酱³ APP推送的话，就创建名为`SC3_SENDKEY`和`SC3_UID`(可选）的环境变量；如果是第一次使用 Server酱³ 的话，需要到[Server酱3官网](https://sc3.ft07.com/) 注册一个账号，再在手机上下载Server酱³ App。**
+
+`SC3_SENDKEY`: Server酱³ SendKey（形如 sctp12345tXXXX...）
+
+`SC3_UID`（可选）: 若不填会从SC3_SENDKEY自动解析（形如 12345)
 
 如果是第一次使用GitHub Action的话，还需要手动打开这个功能 在你仓库上方菜单中进入Actions
 
-点击 I understand... enable them > Enable workflow
+点击 I understand... enable them > Enable workflow我明白了……启用它们>启用工作流
 
 之后就可以自动运行签到了, 想要手动测试的话，选择左侧的Auto Sign > Run workflow, 刷新页面就能看到结果了
 
@@ -172,11 +179,17 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 ## 使用NAS部署
 
-其实和Github Action的配置方式一样，导入脚本以后，创建一个`TOKEN`的环境变量即可。
+其实和Github Action的配置方式一样，导入脚本以后，**创建一个`TOKEN`的环境变量**即可。
+
+**如果要开启 Server酱³ APP推送的话，就创建名为`SC3_SENDKEY`和`SC3_UID`(可选）的环境变量。**
+
+SC3_SENDKEY: Server酱³ SendKey（形如 sctp12345tXXXX...）。
+
+SC3_UID（可选）: 若不填会从SC3_SENDKEY自动解析。（形如 12345）。
 
 每个面板可能创建方式不太一样，不展示了
 
-<a name="multiple_account"></a>
+<a name="multiple_account">
 
 ## 多账号支持
 
@@ -188,7 +201,7 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 **不要去登出账号，否则鹰角网络通行证会失效！**
 
-如果要添加多个账号，请删除浏览器缓存。或者使用浏览器自带的隐私浏览模式，拿到Token后，关闭隐私窗口，再登录一次即可！
+如果要添加多个账号，请删除浏览器缓存。或者使用浏览器自带的隐私浏览模式，拿到 `Token` 后，关闭隐私窗口，再登录一次即可！
 ![img_20.png](assets/img_20.png)
 ![img_21.png](assets/img_21.png)
 
@@ -252,4 +265,8 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 2024.9.10 森空岛登入接口引入了数美接口，请求头必须传递dId参数，导致无法正常登陆
 
+
 现已解决，具体实现看`SecuritySm.py`文件
+
+
+

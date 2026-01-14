@@ -5,6 +5,8 @@ import logging
 import os.path
 import threading
 import time
+import re
+from typing import Optional, Tuple
 from datetime import date
 from getpass import getpass
 from urllib import parse
@@ -102,6 +104,42 @@ def config_logger():
     requests.get = get
     requests.post = post
 
+def push_serverchan3(sendkey: str, title: str, desp: str = "",
+                     uid: Optional[str] = None, tags: Optional[str] = None,
+                     short: Optional[str] = None, timeout: int = 10) -> Tuple[bool, str]:
+    """
+    推送到 Server酱³
+    - sendkey: 你的 SendKey（形如 sctp123456tXXXX...）
+    - uid: 可选；不填则自动从 sendkey 提取（正则 ^sctp(\\d+)t）
+    - title/desp: 标题与正文（desp 支持 Markdown）
+    - tags/short: 可选
+    返回: (是否成功, 返回文本)
+    """
+    if not sendkey:
+        return False, "sendkey is empty"
+
+    if uid is None:
+        m = re.match(r"^sctp(\d+)t", sendkey)
+        if not m:
+            return False, "cannot extract uid from sendkey; please pass uid explicitly"
+        uid = m.group(1)
+
+    api = f"https://{uid}.push.ft07.com/send/{sendkey}.send"
+    payload = {
+        "title": title or "通知",
+        "desp": desp or "",
+    }
+    if tags:
+        payload["tags"] = tags
+    if short:
+        payload["short"] = short
+
+    try:
+        r = requests.post(api, json=payload, timeout=timeout)
+        ok = (r.status_code == 200)
+        return ok, r.text
+    except Exception as e:
+        return False, f"exception: {e!r}"
 
 def generate_signature(token: str, path, body_or_query):
     """
@@ -207,7 +245,6 @@ def get_cred(grant):
 def get_binding_list():
     v = []
     resp = requests.get(binding_url, headers=get_sign_header(binding_url, 'get', None, http_local.header)).json()
-
     if resp['code'] != 0:
         print(f"请求角色列表出现问题：{resp['message']}")
         if resp.get('message') == '用户未登录':
@@ -220,11 +257,9 @@ def get_binding_list():
         v.extend(i.get('bindingList'))
     return v
 
-
 def list_awards(game_id, uid):
     resp = requests.get(sign_url, headers=http_local.header, params={'gameId': game_id, 'uid': uid}).json()
     print(resp)
-
 
 def do_sign(cred_resp):
     http_local.token = cred_resp['token']
@@ -232,24 +267,28 @@ def do_sign(cred_resp):
     http_local.header['cred'] = cred_resp['cred']
     characters = get_binding_list()
 
+    logs_out = []  # 新增：用于 Server酱³ 的汇总文本
+
     for i in characters:
         body = {
             'gameId': 1,
             'uid': i.get('uid')
         }
-        # list_awards(1, i.get('uid'))
         resp = requests.post(sign_url, headers=get_sign_header(sign_url, 'post', body, http_local.header),
                              json=body).json()
         if resp['code'] != 0:
-            print(f'角色{i.get("nickName")}({i.get("channelName")})签到失败了！原因：{resp.get("message")}')
+            msg = f'角色{i.get("nickName")}({i.get("channelName")})签到失败！原因：{resp.get("message")}'
+            print(msg)
+            logs_out.append(msg)
             continue
         awards = resp['data']['awards']
         for j in awards:
             res = j['resource']
-            print(
-                f'角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
-            )
+            msg = f'角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
+            print(msg)
+            logs_out.append(msg)
 
+    return logs_out  # 新增：返回给调用方
 
 def save(token):
     with open(token_save_name, 'w') as f:
@@ -312,16 +351,38 @@ def input_for_token():
         exit(-1)
     return token
 
-
 def start():
     token = init_token()
+    all_logs = []  # 新增：汇总所有账号/角色的输出
+
     for i in token:
         try:
-            do_sign(get_cred_by_token(i))
+            logs_out = do_sign(get_cred_by_token(i))
+            all_logs.extend(logs_out)
         except Exception as ex:
-            print(f'签到失败，原因：{str(ex)}')
+            err = f'签到失败，原因：{str(ex)}'
+            print(err)
             logging.error('', exc_info=ex)
+            all_logs.append(err)
+
     print("签到完成！")
+
+    # === Server酱³ 推送（可选，通过环境变量控制） ===
+    # 在本地或 GitHub Actions 设置：
+    #   SC3_SENDKEY: 必填
+    #   SC3_UID: 可选（若不设，将自动从 sendkey 中提取）
+    sc3_sendkey = os.environ.get('SC3_SENDKEY', '').strip()
+    sc3_uid     = os.environ.get('SC3_UID', '').strip() or None
+
+    if sc3_sendkey:
+        # 标题带日期；正文多行
+        title = f'森空岛自动签到结果 - {date.today().strftime("%Y-%m-%d")}'
+        # 给 Server酱³ 的 desp，支持 Markdown，这里简单用换行拼接
+        desp = '\n'.join(all_logs) if all_logs else '今日无可用账号或无输出'
+        ok, resp = push_serverchan3(sc3_sendkey, title, desp, uid=sc3_uid)
+        print("[SC3] 推送成功" if ok else "[SC3] 推送失败", resp)
+    else:
+        print("[SC3] 跳过推送：未设置环境变量 SC3_SENDKEY")
 
 
 if __name__ == '__main__':
@@ -336,3 +397,4 @@ if __name__ == '__main__':
     end_time = time.time()
     logging.info(f'complete with {(end_time - start_time) * 1000} ms')
     logging.info('===========ending============')
+
