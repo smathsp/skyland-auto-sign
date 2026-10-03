@@ -161,14 +161,13 @@ TOKEN和日志应该都会被存储在MAA根路径下
 点击 New repository secret
 
 
- **创建名为`TOKEN`的环境变量（注意变量名全大写），并填入你的鹰角网络通行证，如果要管理多个账号，换行即可** 
+ **创建名为`TOKEN`的环境变量（注意变量名全大写），并填入你的鹰角网络通行证。多个账号支持换行或英文逗号分隔，重复账号会自动去重。**
 
- **如果要开启 Server酱³ APP推送的话，就创建名为`SC3_SENDKEY`和`SC3_UID`(可选）的环境变量；如果是第一次使用 Server酱³ 的话，需要到 [Server酱3官网](https://sc3.ft07.com/) 注册一个账号，再在手机上下载Server酱³ App。**
+如需 Bark 推送，在仓库 Secrets 中添加 `BARK_KEY`，填写 Bark App 中的设备密钥。例如推送地址为 `https://api.day.app/你的密钥/测试内容`，只需填写其中的「你的密钥」，不用填写完整 URL。
 
-`SC3_SENDKEY`: Server酱³ SendKey（形如 sctp12345tXXXX...）
+默认使用 `https://api.day.app`。自建 Bark 服务可在仓库 Actions Variables 中设置 `BARK_SERVER`，例如 `https://bark.example.com`（不包含设备密钥或 `/push`）。
 
-`SC3_UID`（可选）: 若不填会从SC3_SENDKEY自动解析（形如 12345)
-
+推送会汇总所有账号的签到结果，并以「森空岛签到」分组。未设置 `BARK_KEY` 时跳过推送；推送失败会记录日志，但不会改变签到本身的结果。
 
 如果是第一次使用GitHub Action的话，还需要手动打开这个功能 在你仓库上方菜单中进入Actions
 
@@ -176,7 +175,11 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 之后就可以自动运行签到了, 想要手动测试的话，选择左侧的Auto Sign > Run workflow, 刷新页面就能看到结果了
 
-现在可以在Github Action Variable中设置变量`EXIT_WHEN_FAIL = on`，当签到发生错误时，脚本会返回错误，进而你会收到来自Github的邮件，及时知道脚本运行情况
+GitHub Actions 默认启用 `EXIT_WHEN_FAIL=on`：账号读取、角色查询或任一角色签到失败时，任务会返回错误。是否收到邮件取决于你的 GitHub 通知设置。需要关闭失败退出时，可在仓库 Actions Variables 中设置 `EXIT_WHEN_FAIL=off`。本地运行仍需自行设置该环境变量。
+
+工作流每天北京时间 09:00 触发（GitHub 排队可能延迟），日志和推送日期使用北京时间。网络请求设置连接/读取超时，单次任务最长运行 10 分钟；缺少 `TOKEN` 时会直接提示配置错误。
+
+GitHub 若因长期不活跃停用工作流，需要进入 Actions → Auto Sign 重新启用，再手动运行一次检查日志。
 
 <a name="mode3"></a>
 
@@ -184,12 +187,7 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 其实和Github Action的配置方式一样，导入脚本以后， **创建一个`TOKEN`的环境变量** 即可。
 
- **如果要开启 Server酱³ APP推送的话，就创建名为`SC3_SENDKEY`和`SC3_UID`(可选）的环境变量。如果是第一次使用 Server酱³ 的话，需要到 [Server酱3官网](https://sc3.ft07.com/) 注册一个账号，再在手机上下载Server酱³ App。** 
-
-SC3_SENDKEY: Server酱³ SendKey（形如 sctp12345tXXXX...）。
-
-SC3_UID（可选）: 若不填会从SC3_SENDKEY自动解析。（形如 12345）。
-
+如需推送，设置 `BARK_KEY` 环境变量即可；自建服务可额外设置 `BARK_SERVER`。本地和 NAS 部署也可填写 `src/push/config.ini`，已有环境变量优先于配置文件。
 
 每个面板可能创建方式不太一样，不展示了
 

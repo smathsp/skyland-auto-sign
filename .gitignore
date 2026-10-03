@@ -5,3 +5,5 @@ logs
 .idea
 TOKEN.txt
 .pyc
+__pycache__/
+*.pyc

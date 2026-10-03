@@ -308,7 +308,7 @@ def get_d_id():
         'ep': ep,
         'organization': SM_CONFIG['organization'],
         'os': 'web'  # 固定值
-    })
+    }, timeout=(10, 30))
 
     resp = response.json()
     if resp['code'] != 1100:
