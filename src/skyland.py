@@ -75,8 +75,8 @@ def generate_signature(path, body_or_query):
     :param body_or_query: 如果是GET，则是它的query。POST则为它的body
     :return: 计算完毕的sign
     """
-    # 总是说请勿修改设备时间，怕不是yj你的服务器有问题吧，所以这里特地-2
-    t = str(int(time.time()) - 2)
+    # 服务端已修复时间戳校验，使用当前时间。
+    t = str(int(time.time()))
     token = http_local.token.encode('utf-8')
     header_ca = json.loads(json.dumps(header_for_sign))
     header_ca['timestamp'] = t
@@ -101,11 +101,11 @@ def get_sign_header(url: str, method, body, h):
 
 def login_by_code():
     phone = input('请输入手机号码：')
-    resp = requests.post(login_code_url, json={'phone': phone, 'type': 2}, headers=header_login).json()
+    resp = requests.post(login_code_url, json={'phone': phone, 'type': 2}, headers=header_login, timeout=(10, 30)).json()
     if resp.get("status") != 0:
         raise Exception(f"发送手机验证码出现错误：{resp['msg']}")
     code = input("请输入手机验证码：")
-    r = requests.post(token_phone_code_url, json={"phone": phone, "code": code}, headers=header_login).json()
+    r = requests.post(token_phone_code_url, json={"phone": phone, "code": code}, headers=header_login, timeout=(10, 30)).json()
     return get_token(r)
 
 
@@ -126,7 +126,7 @@ def parse_user_token(t):
 def login_by_password():
     phone = input('请输入手机号码：')
     password = getpass('请输入密码(不会显示在屏幕上面)：')
-    r = requests.post(token_password_url, json={"phone": phone, "password": password}, headers=header_login).json()
+    r = requests.post(token_password_url, json={"phone": phone, "password": password}, headers=header_login, timeout=(10, 30)).json()
     return get_token(r)
 
 
@@ -146,7 +146,7 @@ def get_grant_code(token):
         'appCode': app_code,
         'token': token,
         'type': 0
-    }, headers=header_login)
+    }, headers=header_login, timeout=(10, 30))
     resp = response.json()
     if response.status_code != 200:
         raise Exception(f'获得认证代码失败：{resp}')
@@ -159,7 +159,7 @@ def get_cred(grant):
     resp = requests.post(cred_code_url, json={
         'code': grant,
         'kind': 1
-    }, headers=header_login).json()
+    }, headers=header_login, timeout=(10, 30)).json()
     if resp['code'] != 0:
         raise Exception(f'获得cred失败：{resp["message"]}')
     return resp['data']
@@ -167,7 +167,7 @@ def get_cred(grant):
 
 def refresh_token():
     headers = get_sign_header(refresh_token_url, 'get', None, http_local.header)
-    resp = requests.get(refresh_token_url, headers=headers).json()
+    resp = requests.get(refresh_token_url, headers=headers, timeout=(10, 30)).json()
     if resp.get('code') != 0:
         raise Exception(f'刷新token失败:{resp["message"]}')
     http_local.token = resp['data']['token']
@@ -175,14 +175,10 @@ def refresh_token():
 
 def get_binding_list():
     v = []
-    resp = requests.get(binding_url, headers=get_sign_header(binding_url, 'get', None, http_local.header)).json()
+    resp = requests.get(binding_url, headers=get_sign_header(binding_url, 'get', None, http_local.header), timeout=(10, 30)).json()
 
     if resp['code'] != 0:
-        logging.error(f"请求角色列表出现问题：{resp['message']}")
-        if resp.get('message') == '用户未登录':
-            logging.error(f'用户登录可能失效了，请重新运行此程序！')
-            os.remove(token_save_name)
-            return []
+        raise RuntimeError(f"请求角色列表失败：{resp.get('message', '未知错误')}")
     for i in resp['data']['list']:
         # 也许有些游戏没有签到功能？
         if i.get('appCode') not in ('arknights', 'endfield'):
@@ -201,31 +197,35 @@ def sign_for_arknights(data: dict):
     }
     url = sign_url_mapping['arknights']
     headers = get_sign_header(url, 'post', body, http_local.header)
-    resp = requests.post(url, headers=headers, json=body).json()
+    resp = requests.post(url, headers=headers, json=body, timeout=(10, 30)).json()
     game_name = data.get('gameName')
     channel = data.get("channelName")
     nickname = data.get('nickName') or ''
     if resp.get('code') != 0:
-        return [
+        return False, [
             f'[{game_name}]角色{nickname}({channel})签到失败了！原因：{resp["message"]}']
     result = ''
     awards = resp['data']['awards']
     for j in awards:
         res = j['resource']
         result += f'{res["name"]}×{j.get("count") or 1}'
-    return [f'[{game_name}]角色{nickname}({channel})签到成功，获得了{result}']
+    return True, [f'[{game_name}]角色{nickname}({channel})签到成功，获得了{result}']
 
 
 def sign_for_endfield(data: dict):
-    roles: list[dict] = data.get('roles')
+    roles: list[dict] = data.get('roles') or []
     game_name = data.get('gameName')
     channel = data.get("channelName")
     result = []
+    success = bool(roles)
+    if not roles:
+        return False, [f'[{game_name}]未找到可签到角色']
     for i in roles:
         nickname = i.get('nickname') or ''
         resp = do_sign_for_endfield(i)
         j = resp.json()
         if j['code'] != 0:
+            success = False
             result.append(f'[{game_name}]角色{nickname}({channel})签到失败了！原因:{j["message"]}')
         else:
             awards_result = []
@@ -239,7 +239,7 @@ def sign_for_endfield(data: dict):
                 awards_result.append(f'{award_name}×{award_count}')
 
             result.append(f'[{game_name}]角色{nickname}({channel})签到成功，获得了:{",".join(awards_result)}')
-    return result
+    return success, result
 
 
 def do_sign_for_endfield(role: dict):
@@ -253,7 +253,7 @@ def do_sign_for_endfield(role: dict):
         'referer': 'https://game.skland.com/',
         'origin': 'https://game.skland.com/'
     })
-    return requests.post(url, headers=headers)
+    return requests.post(url, headers=headers, timeout=(10, 30))
 
 
 def do_sign(cred_resp):
@@ -261,15 +261,19 @@ def do_sign(cred_resp):
     http_local.header = header.copy()
     http_local.header['cred'] = cred_resp['cred']
     characters = get_binding_list()
+    if not characters:
+        return False, ['未找到可签到的明日方舟或终末地角色']
     success = True
-    logs_out = []  # 新增：用于 Server酱³ 的汇总文本
+    logs_out = []  # 新增：用于 Bark 的汇总文本
     for i in characters:
         app_code = i['appCode']
-        msg = None
         if app_code == 'arknights':
-            msg = sign_for_arknights(i)
+            sign_success, msg = sign_for_arknights(i)
         elif app_code == 'endfield':
-            msg = sign_for_endfield(i)
+            sign_success, msg = sign_for_endfield(i)
+        else:
+            continue
+        success = sign_success and success
         logging.info(msg)
 
         logs_out.extend(msg)
@@ -285,7 +289,7 @@ def save(token):
 
 
 def read(path):
-    if not os.path.exists(token_save_name):
+    if not os.path.exists(path):
         return []
     v = []
     with open(path, 'r', encoding='utf-8') as f:
@@ -297,11 +301,24 @@ def read(path):
 
 def read_from_env():
     v = []
-    token_list = token_env.split(',')
+    raw = (token_env or '').strip()
+    parsed = parse_user_token(raw)
+    if parsed != raw:
+        token_list = [parsed]
+    else:
+        token_list = []
+        for line in raw.splitlines():
+            parsed_line = parse_user_token(line.strip())
+            if parsed_line != line.strip():
+                token_list.append(parsed_line)
+            else:
+                token_list.extend(line.split(','))
     for i in token_list:
         i = i.strip()
-        if i and i not in v:
-            v.append(parse_user_token(i))
+        if i:
+            parsed = parse_user_token(i).strip()
+            if parsed and parsed not in v:
+                v.append(parsed)
     logging.info(f'从环境变量中读取到{len(v)}个token...')
     return v
 
@@ -311,6 +328,8 @@ def init_token():
         logging.info('使用环境变量里面的token')
         # 对于github action,不需要存储token,因为token在环境变量里
         return read_from_env()
+    if os.environ.get('GitHub_Actions') or os.environ.get('GITHUB_ACTIONS'):
+        raise RuntimeError('请配置 TOKEN 环境变量，GitHub Actions 无法交互登录')
     tokens = []
     tokens.extend(read(token_save_name))
     add_account = current_type == 'add_account'
@@ -340,7 +359,15 @@ def input_for_token():
 
 
 def start():
-    token = init_token()
+    try:
+        token = init_token()
+    except Exception as ex:
+        logging.error('读取账号失败：%s', ex)
+        return False, [f'读取账号失败：{ex}']
+    if not token:
+        if current_type == 'add_account':
+            return True, ['账号添加完成']
+        return False, ['未读取到有效 TOKEN，请检查账号配置']
     success = True
     all_logs = []  # 新增：汇总所有账号/角色的输出
     for i in token:

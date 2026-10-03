@@ -4,20 +4,32 @@ on:
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Shanghai
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v7
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v7
         with:
-          python-version: 3.9
+          python-version: '3.13'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
-          pip install cryptography
+          python -m pip install -r requirements.txt
+      - name: Check TOKEN
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+        run: |
+          if [ -z "${TOKEN//[[:space:]]/}" ]; then
+            echo "::error::Please configure the TOKEN repository secret."
+            exit 1
+          fi
       - name: Run main.py
         env:
           GitHub_Actions: true
@@ -25,8 +37,8 @@ jobs:
           # PHONE: ${{ secrets.PHONE }}
           # PASSWORD: ${{ secrets.PASSWORD }}
           TOKEN: ${{ secrets.TOKEN }}
-          SC3_SENDKEY: ${{ secrets.SC3_SENDKEY }}
-          SC3_UID: ${{ secrets.SC3_UID }}
-          EXIT_WHEN_FAIL: ${{ vars.EXIT_WHEN_FAIL }}
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          BARK_SERVER: ${{ vars.BARK_SERVER }}
+          EXIT_WHEN_FAIL: ${{ vars.EXIT_WHEN_FAIL || 'on' }}
         run: |
           python src/main.py

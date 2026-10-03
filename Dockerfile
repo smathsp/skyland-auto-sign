@@ -10,7 +10,7 @@ ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 ENV TOKEN=""
-ENV SC3_SENDKEY=""
-ENV SC3_UID=""
+ENV BARK_KEY=""
+ENV BARK_SERVER="https://api.day.app"
 
 CMD ["python", "src/main.py" ]

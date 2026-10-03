@@ -1,8 +1,8 @@
-import json
 import logging
 import os
 import time
 from datetime import date
+from urllib.parse import urlsplit
 
 import requests
 
@@ -32,20 +32,6 @@ def config_logger():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    def filter_code(text):
-        filter_key = ['code', 'cred', 'token']
-        try:
-            j = json.loads(text)
-            if not j.get('data'):
-                return text
-            data = j['data']
-            for i in filter_key:
-                if i in data:
-                    data[i] = '*****'
-            return json.dumps(j, ensure_ascii=False)
-        except:
-            return text
-
     _get = requests.get
     _post = requests.post
 
@@ -58,7 +44,7 @@ def config_logger():
                 'verify': False
             })
         response = _get(*args, **kwargs)
-        logger.debug(f'GET {args[0]} - {response.status_code} - {filter_code(response.text)}')
+        logger.debug('GET %s - %s', urlsplit(args[0]).hostname, response.status_code)
         return response
 
     def post(*args, **kwargs):
@@ -70,7 +56,7 @@ def config_logger():
                 'verify': False
             })
         response = _post(*args, **kwargs)
-        logger.debug(f'POST {args[0]} - {response.status_code} - {filter_code(response.text)}')
+        logger.debug('POST %s - %s', urlsplit(args[0]).hostname, response.status_code)
         return response
 
     # 替换 requests 中的方法
@@ -78,11 +64,10 @@ def config_logger():
     requests.post = post
 
 
-if __name__ == '__main__':
+def main():
     config_logger()
 
-    print('本项目源代码仓库：https://github.com/xxyz30/skyland-auto-sign(因白嫖action被github封禁)')
-    print('https://gitee.com/FancyCabbage/skyland-auto-sign')
+    print('本项目源代码仓库：https://github.com/smathsp/skyland-auto-sign')
     logging.info('=========starting==========')
     start_time = time.time()
     success, all_logs = start()
@@ -93,4 +78,9 @@ if __name__ == '__main__':
 
     logging.info(f'exit_when_fail_env: {exit_when_fail_env}, success: {success}')
     if (exit_when_fail_env == "on") and not success:
-        exit(1)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
